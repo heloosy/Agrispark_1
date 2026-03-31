@@ -83,17 +83,17 @@ app.post('/voice', (req, res) => {
 });
 
 // STEP 2: INPUT HANDLING
-app.post('/voice/handle-selection', (req, res) => {
+app.post('/voice/handle-selection', async (req, res) => {
   const digits = req.body.Digits;
   // If outbound call, the user is the 'To' number. If inbound, user is 'From'.
   const callerId = req.body.Direction === 'outbound-api' ? req.body.To : req.body.From;
   const twiml = new twilio.twiml.VoiceResponse();
   
-  const session = getSession(callerId);
+  const session = await getSession(callerId);
 
   if (digits === '1') {
     // QUICK QUERY MODE
-    session.mode = 'quick';
+    await updateSession(callerId, { mode: 'quick' });
     const gather = twiml.gather({
       input: 'speech',
       action: '/voice/quick-query',
@@ -149,6 +149,12 @@ app.post('/voice/full-assistance', async (req, res) => {
   const userInput = req.body.SpeechResult || 'Unknown';
   const twiml = new twilio.twiml.VoiceResponse();
   
+  // Extract state from query params (Vercel is stateless)
+  const step = req.query.step;
+  const name = req.query.name || 'Unknown';
+  const location = req.query.location || 'Unknown';
+  const crop = req.query.crop || 'Unknown';
+
   const cleanInput = sanitizeInput(userInput);
 
   if (step === 'name') {
@@ -222,7 +228,7 @@ app.post('/whatsapp', async (req, res) => {
   const mediaUrl = req.body.MediaUrl0; // Twilio image URL
   
   const twiml = new twilio.twiml.MessagingResponse();
-  const session = getSession(senderNumber);
+  const session = await getSession(senderNumber);
 
   if (incomingMsg.trim() || mediaUrl) {
       console.log(`\n[💬 WhatsApp in from ${senderNumber}]: ${incomingMsg} ${mediaUrl ? `(Media: ${mediaUrl})` : ''}`);
@@ -234,6 +240,9 @@ app.post('/whatsapp', async (req, res) => {
       session.whatsappHistory.push({ role: 'user', parts: [{ text: incomingMsg + (mediaUrl ? ` [Image: ${mediaUrl}]` : '') }] });
       session.whatsappHistory.push({ role: 'model', parts: [{ text: aiReply }] });
       if (session.whatsappHistory.length > 10) session.whatsappHistory.splice(0, 2);
+
+      // Persist the history to Vercel KV
+      await updateSession(senderNumber, { whatsappHistory: session.whatsappHistory });
 
       twiml.message(aiReply);
   }
