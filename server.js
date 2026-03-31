@@ -202,8 +202,8 @@ app.get('/view-plan', (req, res) => {
 
 // Fetches the deep-dive AI content for the web view
 app.get('/api/detailed-manual', async (req, res) => {
-  const { name, location, crop, stage } = req.query;
-  const detailedPlan = await ai.generateDetailedPlan({ name, location, crop, stage });
+  const { name, location, crop, pastCrop, soilType, terrain, stage } = req.query;
+  const detailedPlan = await ai.generateDetailedPlan({ name, location, crop, pastCrop, soilType, terrain, stage });
   res.json({ plan: detailedPlan });
 });
 
@@ -249,9 +249,11 @@ async function generateAndSendWhatsApp(toPhone, formData) {
     const isLocal = !process.env.VERCEL;
     const host = isLocal ? 'localhost:3000' : 'agrispark-lilac.vercel.app';
     const protocol = isLocal ? 'http' : 'https';
-    const detailedLink = `${protocol}://${host}/view-plan?name=${encodeURIComponent(formData.name)}&location=${encodeURIComponent(formData.location)}&crop=${encodeURIComponent(formData.crop)}&stage=${encodeURIComponent(formData.stage)}`;
+    
+    // Pass ALL 6 points to the detailed manual view
+    const detailedLink = `${protocol}://${host}/view-plan?name=${encodeURIComponent(formData.name)}&location=${encodeURIComponent(formData.location)}&crop=${encodeURIComponent(formData.crop)}&pastCrop=${encodeURIComponent(formData.pastCrop)}&soilType=${encodeURIComponent(formData.soilType)}&terrain=${encodeURIComponent(formData.terrain)}&stage=${encodeURIComponent(formData.stage)}`;
 
-    const fullMessage = `${summaryPlan}\n\n📖 GET FULL 30-DAY PDF MANUAL:\n${detailedLink}`;
+    const fullMessage = `${summaryPlan}\n\n📖 *GET YOUR ADVANCED 6-POINT PDF MANUAL:* \n${detailedLink}`;
 
     // Twilio WhatsApp formatting
     let toWhatsApp = toPhone.startsWith('whatsapp:') ? toPhone : `whatsapp:${toPhone}`;
