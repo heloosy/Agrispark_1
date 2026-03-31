@@ -85,7 +85,6 @@ app.post('/voice', (req, res) => {
 // STEP 2: INPUT HANDLING
 app.post('/voice/handle-selection', async (req, res) => {
   const digits = req.body.Digits;
-  // If outbound call, the user is the 'To' number. If inbound, user is 'From'.
   const callerId = req.body.Direction === 'outbound-api' ? req.body.To : req.body.From;
   const twiml = new twilio.twiml.VoiceResponse();
   
@@ -101,14 +100,18 @@ app.post('/voice/handle-selection', async (req, res) => {
       speechTimeout: 'auto'
     });
     gather.say("Please tell your question.");
-    twiml.say("We didn't catch that. Goodbye!");
+    twiml.redirect('/voice/handle-selection?Digits=1'); // Retry loop for silence
   } else if (digits === '2') {
-    twiml.say("Great. Let's get started. What is your name?");
+    // START AI-DRIVEN CONVERSATION (AUTONOMOUS)
     const gather = twiml.gather({
       input: 'speech',
-      action: '/voice/full-assistance?step=name',
-      timeout: 4
+      action: '/voice/full-assistance',
+      timeout: 5,
+      speechTimeout: 'auto'
     });
+    gather.say("Great. I am your expert farming assistant. How can I help you today?");
+    // SILENCE PROTECTION: Loop to full-assistance
+    twiml.redirect('/voice/full-assistance');
   } else {
     // Invalid input or default
     twiml.say("Invalid choice.");
@@ -167,21 +170,25 @@ app.post('/voice/full-assistance', async (req, res) => {
     twiml.say(aiResponse);
     twiml.hangup();
     
-    // Asynchronously extract data and send the plan!
+    // Async background task for WhatsApp delivery
     (async () => {
         const formData = await ai.extractFarmerData(session.voiceHistory);
         await generateAndSendWhatsApp(callerId, formData);
-        // Reset the voice history after successful delivery
         await updateSession(callerId, { voiceHistory: [] });
     })();
   } else {
-    // Keep the conversation going
+    // Keep the conversation alive with a gather and a fallback redirect
     const gather = twiml.gather({
       input: 'speech',
       action: '/voice/full-assistance',
-      timeout: 4
+      timeout: 4,
+      speechTimeout: 'auto'
     });
     gather.say(aiResponse);
+    
+    // IF THE USER IS SILENT during the gather, this redirect will loop back to /voice/full-assistance
+    // We send a default empty result to trigger the 'I am listening' response from AI.
+    twiml.redirect('/voice/full-assistance');
   }
 
   res.type('text/xml');
