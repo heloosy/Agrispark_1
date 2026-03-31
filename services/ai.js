@@ -4,22 +4,28 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // System Instruction based on the farming_assistant_prompt.md
 // The 'PhD Brain' of the AI, defining its personality and scientific mastery.
+// The 'PhD Brain' of the AI, defining its personality and scientific mastery.
 const farmingAssistantSystemPrompt = `
 You are a PhD-level Senior Agronomist and Scientific Farming Consultant for AgriSpark. 
-You are NOT a basic chatbot; you are a data-driven expert providing laboratory-grade agricultural advice.
+You provide laboratory-grade agricultural advice with a focus on soil health, terrain engineering, and intercropping.
+
+MANDATORY 6-POINT CHECKLIST FOR DETAILED GUIDANCE:
+1. **Name** (Farmer's identification)
+2. **Field Location** (For climate/weather context)
+3. **Past Crop** (To manage soil depletion and pests)
+4. **Soil Type** (Sandy, Clay, Loamy, Red, etc. for drainage/NPK)
+5. **Terrain** (Flat, Sloped, Hilly, Lowland - triggers engineering advice)
+6. **Current Stage** (Sowing, Growing, Flowing, Harvest)
 
 CORE PRINCIPLES:
-1. **SCIENTIFIC PRECISION**: Provide exact measurements (e.g., "50kg Urea/ha"), active chemical ingredients, and specific NPK ratios.
-2. **NO STALLING**: If a symptom like "yellow leaves" is mentioned, diagnose it IMMEDIATELY and provide 3 likely scientific causes.
-3. **AUTONOMOUS DIALOGUE**: Manage the conversation flow yourself. If you need details (Name, Location, Crop), ask for ONE at a time naturally while giving advice.
-4. **VALUE-FIRST**: Never say "I need more info first." Answer first, then ask.
+- **SCIENTIFIC PRECISION**: Provide exact measurements (e.g., "50kg Urea/ha") and active ingredients.
+- **INTERCROPPING**: Suggest compatible side-crops (companion plants) to boost yield and soil health (e.g., Planting beans with maize).
+- **TERRAIN ENGINEERING**: If terrain is "Hilly" or "Sloped", suggest terracing, contour trenches, or specific erosion controls.
+- **NO STALLING**: Answer symptoms immediately, then circle back to the checklist.
 
 FORMATTING:
-- FOR VOICE: Keep answers under 20 words for fast audio playback.
-- FOR WHATSAPP: 
-  * NEVER USE '*' as a bullet point (it breaks WhatsApp bolding). Use ONLY '•' for main bullets.
-  * Use *Bold Headers:* followed by a newline for each section.
-  * Ensure a full empty line exists between different sections for readability.
+- FOR VOICE: Keep answers under 25 words. Ask for missing checklist items ONE at a time.
+- FOR WHATSAPP: Use bold *Headers:*, bullet points •, and clear spacing.
 `;
 
 // Model configuration for consistent output
@@ -80,24 +86,23 @@ async function generateFullPlan(formData) {
     - Use • for main tasks and - for technical details.
     - Provide a CLEAR blank line between sections.
     
-    Data for:
-    User: ${formData.name}
-    Location: ${formData.location}
-    Crop: ${formData.crop}
-    Stage: ${formData.stage}
+    Data provided:
+    Farmer: ${formData.name} in ${formData.location}
+    Soil: ${formData.soilType} | Terrain: ${formData.terrain}
+    Past Crop: ${formData.pastCrop} | Current Stage: ${formData.stage}
     
     Include:
-    - *Soil Preparation & Chemistry:* (NPK ratios)
-    - *14-30 Day Task Calendar:* (Phases with • bullets)
-    - *Irrigation & Climate:* (Direct water instructions)
-    - *Disease & Risk Control:* (Chemicals and biological fixes)
+    - *Soil & Terrain Preparation:* (Specific NPK + Terrain engineering like terracing if sloped)
+    - *14-Day Management Pulse:* (Phases with • bullets)
+    - *Companion Planting & Side-Crops:* (Scientific names of 2 side-crops to boost yield)
+    - *Disease & Risk Alert:* (Pests to watch out for based on Past Crop)
     `;
     const response = await ai.models.generateContent({
       model: modelName,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         systemInstruction: farmingAssistantSystemPrompt,
-        temperature: 0.7 
+        temperature: 0.7
       }
     });
 
@@ -146,15 +151,15 @@ async function getDynamicVoiceResponse(userInput, history = []) {
  * Helper to convert a URL into a Gemini-compatible media part for vision analysis.
  */
 async function getMediaPart(url) {
-    const axios = require('axios');
-    const response = await axios.get(url, { responseType: 'arraybuffer' });
-    const mimeType = response.headers['content-type'] || 'image/jpeg';
-    return {
-        inlineData: {
-            data: Buffer.from(response.data).toString('base64'),
-            mimeType: mimeType
-        }
-    };
+  const axios = require('axios');
+  const response = await axios.get(url, { responseType: 'arraybuffer' });
+  const mimeType = response.headers['content-type'] || 'image/jpeg';
+  return {
+    inlineData: {
+      data: Buffer.from(response.data).toString('base64'),
+      mimeType: mimeType
+    }
+  };
 }
 
 /**
@@ -163,7 +168,7 @@ async function getMediaPart(url) {
 async function getWhatsAppChatResponse(userText, history = [], imageUrl = null) {
   try {
     const contents = [...history];
-    
+
     let promptContext = `
     THE USER IS MESSAGING YOU ON WHATSAPP.
     
@@ -177,21 +182,21 @@ async function getWhatsAppChatResponse(userText, history = [], imageUrl = null) 
     `;
 
     const currentParts = [{ text: promptContext }];
-    
+
     if (imageUrl) {
-        // Download and attach the image for vision analysis
-        currentParts.push(await getMediaPart(imageUrl));
+      // Download and attach the image for vision analysis
+      currentParts.push(await getMediaPart(imageUrl));
     }
 
     contents.push({ role: 'user', parts: currentParts });
 
     const response = await ai.models.generateContent({
-        model: modelName,
-        contents: contents,
-        config: { 
-            systemInstruction: farmingAssistantSystemPrompt, 
-            temperature: 0.7 
-        }
+      model: modelName,
+      contents: contents,
+      config: {
+        systemInstruction: farmingAssistantSystemPrompt,
+        temperature: 0.7
+      }
     });
 
     return response.text;
@@ -208,15 +213,21 @@ async function generateDetailedPlan(formData) {
   try {
     const prompt = `
     Produce a 2000-word equivalent PhD-level farming manual.
-    Farmer: ${formData.name} in ${formData.location}. Crop: ${formData.crop} at ${formData.stage} stage.
+    Farmer: ${formData.name} in ${formData.location}.
+    Soil: ${formData.soilType} | Terrain: ${formData.terrain}
+    Current Crop: ${formData.crop} | Past: ${formData.pastCrop}
     
-    INCLUDE: Soil Chemistry (NPK), 30-Day Master Calendar, Water Engineering, and Advanced Pest Management.
+    INCLUDE DEEP ANALYSIS:
+    1. Soil Chemistry (NPK balancing for ${formData.soilType})
+    2. Terrain Engineering (Hydrology & Erosion control for ${formData.terrain})
+    3. Side-Crops & Intercropping (2-3 biological companions for ${formData.crop})
+    4. 30-Day Master Calendar from the ${formData.stage} stage.
     `;
 
     const response = await ai.models.generateContent({
-        model: modelName,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { systemInstruction: farmingAssistantSystemPrompt, temperature: 0.8 }
+      model: modelName,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { systemInstruction: farmingAssistantSystemPrompt, temperature: 0.8 }
     });
     return response.text;
   } catch (error) {
@@ -229,17 +240,28 @@ async function generateDetailedPlan(formData) {
  * Advanced Utility: Extracts structured data from conversation history.
  */
 async function extractFarmerData(history) {
-    try {
-        const prompt = "Extract the following data as JSON from this conversation: { name, location, crop, stage }. If unknown, use 'Unknown'.";
-        const response = await ai.models.generateContent({
-            model: modelName,
-            contents: [...history, { role: 'user', parts: [{ text: prompt }] }],
-            config: { temperature: 0 }
-        });
-        return JSON.parse(response.text.replace(/```json|```/g, ''));
-    } catch (e) {
-        return { name: 'Unknown', location: 'Unknown', crop: 'Unknown', stage: 'Unknown' };
-    }
+  try {
+    const prompt = `Extract exactly 6 data points from this conversation as JSON:
+    { 
+      "name": "...", 
+      "location": "...", 
+      "crop": "...", 
+      "pastCrop": "...", 
+      "soilType": "...", 
+      "terrain": "...",
+      "stage": "..."
+    } 
+    If unknown, use "Unknown". Use lower case for keys.`;
+    
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: [...history, { role: 'user', parts: [{ text: prompt }] }],
+      config: { temperature: 0 }
+    });
+    return JSON.parse(response.text.replace(/```json|```/g, ''));
+  } catch (e) {
+    return { name: 'Unknown', location: 'Unknown', crop: 'Unknown', pastCrop: 'Unknown', soilType: 'Unknown', terrain: 'Unknown', stage: 'Unknown' };
+  }
 }
 
 module.exports = {
