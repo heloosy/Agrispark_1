@@ -165,9 +165,12 @@ app.post('/voice/full-assistance', async (req, res) => {
   if (session.voiceHistory.length > 6) session.voiceHistory.splice(0, 2);
   await updateSession(callerId, session);
 
-  // Check if Gemini is finalizing the dialogue
-  if (aiResponse.toLowerCase().includes("whatsapp") || aiResponse.toLowerCase().includes("manual")) {
-    twiml.say(aiResponse);
+  // Check if Gemini is finalizing the dialogue with the secret signal
+  const isFinalStep = aiResponse.includes("TERMINATE_CALL");
+  const cleanResponse = aiResponse.replace("TERMINATE_CALL", "").trim();
+
+  if (isFinalStep) {
+    twiml.say(cleanResponse);
     twiml.hangup();
     
     // Async background task for WhatsApp delivery
