@@ -78,24 +78,21 @@ async function getQuickResponse(userQuery) {
 async function generateFullPlan(formData) {
   try {
     const prompt = `
-    Produce a professional, detailed 30-day farming management plan. 
-    ⚠️ FORMATTING RULES:
-    - NEVER USE TABLES. 
-    - Use *Section Headers:* (bolded with a colon) followed by a newline.
-    - Use • for main tasks and - for technical details.
-    - Provide a CLEAR blank line between sections.
+    Produce a BRIEF, HIGH-LEVEL WhatsApp summary (MAX 600 characters).
+    ⚠️ RULES:
+    - BE CONCISE. Use • bullets only.
+    - Focus on the main action items for ${formData.targetCrop}.
+    - Tell the farmer the full scientific detail is in the PDF link below.
     
-    Context:
-    Farmer: ${formData.name} in ${formData.location}
+    Data:
+    Farmer: ${formData.name}
+    Target: ${formData.targetCrop} (${formData.stage})
     Soil: ${formData.soilType} | Terrain: ${formData.terrainType}
-    Target Crop: ${formData.targetCrop} | Past: ${formData.pastCrop} | Stage: ${formData.stage}
     
-    Include:
-    - *Soil & Terrain Strategy:* (NPK ratios + Erosion engineering for ${formData.terrainType})
-    - *30-Day Task Calendar:* (Phases with • bullets)
-    - *Target Crop Optimization:* (Specific density and timing for ${formData.targetCrop})
-    - *Companion Side-Crops:* (2 scientific intercropping suggestions for yield & nitrogen)
-    - *Risk Control:* (Pest precautions based on ${formData.pastCrop})
+    Include brief bullets for:
+    - Soil NPK Highlight
+    - Main 14-Day Priority
+    - Side-Crop Recommendation
     `;
     const response = await ai.models.generateContent({
       model: modelName,
