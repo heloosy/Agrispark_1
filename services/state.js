@@ -1,31 +1,66 @@
-// Simple in-memory session store
-// Keys are phone numbers (e.g. "+1234567890")
-// Values: { mode: 'full', step: 'name', data: { name: '', location: '', crop: '', stage: '' } }
+const { createClient } = require('@vercel/kv');
 
-const sessions = {};
+// Initialize Vercel KV client
+// The user used the prefix 'STORAGE' in their Vercel dashboard.
+const kv = createClient({
+  url: process.env.STORAGE_REST_API_URL,
+  token: process.env.STORAGE_REST_API_TOKEN,
+});
 
-function getSession(phoneNumber) {
-  if (!sessions[phoneNumber]) {
-    sessions[phoneNumber] = {
-      mode: null,
-      step: null,
-      data: {},
-      whatsappHistory: []
+/**
+ * Gets a session from Vercel KV (Redis).
+ * Vercel is stateless, so we must use a persistent database for memory.
+ */
+async function getSession(phoneNumber) {
+  try {
+    let session = await kv.get(`session:${phoneNumber}`);
+    
+    if (!session) {
+      session = {
+        mode: null,
+        step: null,
+        data: {},
+        whatsappHistory: []
+      };
+      // Save the initial session
+      await kv.set(`session:${phoneNumber}`, session);
+    }
+    
+    return session;
+  } catch (error) {
+    console.error(`[KV] Error getting session for ${phoneNumber}:`, error.message);
+    // Fallback to in-memory if KV fails (for local testing without KV)
+    return {
+        mode: null,
+        step: null,
+        data: {},
+        whatsappHistory: []
     };
   }
-  return sessions[phoneNumber];
 }
 
-function updateSession(phoneNumber, updates) {
-  const session = getSession(phoneNumber);
-  Object.assign(session, updates);
+/**
+ * Updates a session in Vercel KV.
+ */
+async function updateSession(phoneNumber, updates) {
+  try {
+    const session = await getSession(phoneNumber);
+    const updatedSession = Object.assign(session, updates);
+    await kv.set(`session:${phoneNumber}`, updatedSession);
+    return updatedSession;
+  } catch (error) {
+    console.error(`[KV] Error updating session for ${phoneNumber}:`, error.message);
+  }
 }
 
-function clearSession(phoneNumber) {
-  delete sessions[phoneNumber];
+async function clearSession(phoneNumber) {
+  try {
+    await kv.del(`session:${phoneNumber}`);
+  } catch (error) {
+    console.error(`[KV] Error clearing session for ${phoneNumber}:`, error.message);
+  }
 }
 
-// Map of the question order for Full Assistance mode
 const FULL_ASSIST_STEPS = ['name', 'location', 'crop', 'stage'];
 
 module.exports = {
