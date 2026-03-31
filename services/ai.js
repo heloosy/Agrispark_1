@@ -16,7 +16,11 @@ CORE PRINCIPLES:
 
 FORMATTING:
 - FOR VOICE: Keep answers under 20 words for fast audio playback.
-- FOR WHATSAPP: Use structured lists and bolding (*header*). Provide 14-30 day management plans.
+- FOR WHATSAPP: 
+  * NEVER USE TABLES (they break on mobile). Use clean, bulleted categories.
+  * Use *Bold Headers:* followed by a newline for each section.
+  * Use • for main bullet points and - for sub-points.
+  * Ensure a full empty line exists between different sections for readability.
 `;
 
 // Model configuration for consistent output
@@ -70,22 +74,25 @@ async function getQuickResponse(userQuery) {
 async function generateFullPlan(formData) {
   try {
     const prompt = `
-    You are an expert agronomist. 
-    ⚠️ LIMIT: ENTIRE RESPONSE MUST BE UNDER 800 CHARACTERS. 
-    Emojis count as multiple bytes! DO NOT USE MORE THAN 2 EMOJIS IN TOTAL.
+    Produce a professional, detailed 30-day farming management plan. 
+    ⚠️ FORMATTING RULES:
+    - NEVER USE TABLES. 
+    - Use *Section Headers:* (bolded with a colon) followed by a newline.
+    - Use • for main tasks and - for technical details.
+    - Provide a CLEAR blank line between sections.
     
-    Format:
-    Farmer: ${formData.name} | ${formData.location}
-    Crop: ${formData.crop} | Stage: ${formData.stage}
+    Data for:
+    User: ${formData.name}
+    Location: ${formData.location}
+    Crop: ${formData.crop}
+    Stage: ${formData.stage}
     
-    - Preparation: [1 key land prep tilling step]
-    - Fertilizer: [Exact NPK ratio/dosage]
-    - 14-Day Calendar: [Day 1, 7, 14 tasks only]
-    - Watering: [Exact frequency & method]
-    - Climate Alert: [1 specific weather precaution]
-    - Risks: [1 specific pest/disease + 1 fix]
+    Include:
+    - *Soil Preparation & Chemistry:* (NPK ratios)
+    - *14-30 Day Task Calendar:* (Phases with • bullets)
+    - *Irrigation & Climate:* (Direct water instructions)
+    - *Disease & Risk Control:* (Chemicals and biological fixes)
     `;
-
     const response = await ai.models.generateContent({
       model: modelName,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
