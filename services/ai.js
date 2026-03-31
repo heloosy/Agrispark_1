@@ -17,9 +17,8 @@ CORE PRINCIPLES:
 FORMATTING:
 - FOR VOICE: Keep answers under 20 words for fast audio playback.
 - FOR WHATSAPP: 
-  * NEVER USE TABLES (they break on mobile). Use clean, bulleted categories.
+  * NEVER USE '*' as a bullet point (it breaks WhatsApp bolding). Use ONLY '•' for main bullets.
   * Use *Bold Headers:* followed by a newline for each section.
-  * Use • for main bullet points and - for sub-points.
   * Ensure a full empty line exists between different sections for readability.
 `;
 
