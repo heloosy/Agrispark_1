@@ -117,43 +117,59 @@
     </div>
 
     <div class="meta-info">
-      <div class="meta-item"><strong>Report ID:</strong> <span id="report-id">AGRI-4922</span></div>
+      <div class="meta-item"><strong>Report ID:</strong> <span id="report-id">AGRI-EXT-2026</span></div>
       <div class="meta-item"><strong>Date:</strong> <span id="current-date"></span></div>
       <div class="meta-item"><strong>Farmer:</strong> <span id="farmer-name"></span></div>
       <div class="meta-item"><strong>Location:</strong> <span id="farmer-location"></span></div>
-      <div class="meta-item"><strong>Crop Strategy:</strong> <span id="farmer-crop"></span></div>
+      <div class="meta-item"><strong>Target Crop:</strong> <span id="farmer-target-crop" style="color:var(--accent); font-weight:bold;"></span></div>
+      <div class="meta-item"><strong>Past Crop:</strong> <span id="farmer-past-crop"></span></div>
+      <div class="meta-item"><strong>Soil Type:</strong> <span id="farmer-soil"></span></div>
+      <div class="meta-item"><strong>Terrain:</strong> <span id="farmer-terrain"></span></div>
       <div class="meta-item"><strong>Current Stage:</strong> <span id="farmer-stage"></span></div>
     </div>
 
     <div id="loading" style="text-align:center; padding: 2rem;">
-      <p>Generating high-density scientific data... Please wait.</p>
+      <p>Consulting Ph.D. Database & Generating Your 30-Day Plan... Please wait.</p>
     </div>
 
     <div id="content" class="content"></div>
   </div>
 
   <button class="print-btn" onclick="window.print()">
-    📥 Download as PDF
+    📥 Download as Official PDF
   </button>
 
   <script>
     const params = new URLSearchParams(window.location.search);
     document.getElementById('farmer-name').textContent = params.get('name') || 'Valued Farmer';
-    document.getElementById('farmer-location').textContent = params.get('location') || 'Global';
-    document.getElementById('farmer-crop').textContent = params.get('crop') || 'Mix';
-    document.getElementById('farmer-stage').textContent = params.get('stage') || 'Active';
+    document.getElementById('farmer-location').textContent = params.get('location') || 'Global Context';
+    document.getElementById('farmer-target-crop').textContent = params.get('targetCrop') || 'Diversified';
+    document.getElementById('farmer-past-crop').textContent = params.get('pastCrop') || 'None Recorded';
+    document.getElementById('farmer-soil').textContent = params.get('soilType') || 'Unknown Texture';
+    document.getElementById('farmer-terrain').textContent = params.get('terrainType') || 'Flat/Unknown';
+    document.getElementById('farmer-stage').textContent = params.get('stage') || 'Discovery Phase';
     document.getElementById('current-date').textContent = new Date().toLocaleDateString();
 
-    // Fetch the detailed plan content from the server
+    // Fetch the detailed plan content from the server using the FULL 7-POINT PROFILE
     async function loadPlan() {
       try {
-        const response = await fetch(`/api/detailed-manual?name=${encodeURIComponent(params.get('name'))}&location=${encodeURIComponent(params.get('location'))}&crop=${encodeURIComponent(params.get('crop'))}&stage=${encodeURIComponent(params.get('stage'))}`);
+        const name = params.get('name');
+        const loc = params.get('location');
+        const target = params.get('targetCrop');
+        const past = params.get('pastCrop');
+        const soil = params.get('soilType');
+        const terrain = params.get('terrainType');
+        const stage = params.get('stage');
+
+        const query = `name=${encodeURIComponent(name)}&location=${encodeURIComponent(loc)}&targetCrop=${encodeURIComponent(target)}&pastCrop=${encodeURIComponent(past)}&soilType=${encodeURIComponent(soil)}&terrainType=${encodeURIComponent(terrain)}&stage=${encodeURIComponent(stage)}`;
+        
+        const response = await fetch(`/api/detailed-manual?${query}`);
         const data = await response.json();
         
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').innerHTML = marked.parse(data.plan);
       } catch (err) {
-        document.getElementById('loading').textContent = 'Error loading report. Please try again.';
+        document.getElementById('loading').textContent = 'Error: Scientific Manual Generation Failed. Please try again.';
       }
     }
     loadPlan();
