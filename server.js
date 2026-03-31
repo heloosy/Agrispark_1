@@ -188,8 +188,16 @@ app.post('/voice/full-assistance', async (req, res) => {
     
     // IF THE USER IS SILENT during the gather, this redirect will loop back to /voice/full-assistance
     // We send a default empty result to trigger the 'I am listening' response from AI.
+    // SILENCE PROTECTION: Loop back to full-assistance if no speech detected
     twiml.redirect('/voice/full-assistance');
   }
+
+  // --- SAVE CONVERSATION HISTORY ---
+  session.voiceHistory.push({ role: 'user', parts: [{ text: cleanInput }] });
+  session.voiceHistory.push({ role: 'model', parts: [{ text: aiResponse }] });
+
+  // Ensure and await session save before response
+  await updateSession(callerId, { voiceHistory: session.voiceHistory });
 
   res.type('text/xml');
   res.send(twiml.toString());
