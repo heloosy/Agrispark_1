@@ -13,12 +13,16 @@ const connectionPromise = client.connect().catch(err => {
 });
 
 /**
- * Gets a session from Vercel KV (Redis).
+ * Gets a session from Redis.
  * Vercel is stateless, so we must use a persistent database for memory.
  */
 async function getSession(phoneNumber) {
   try {
-    let session = await kv.get(`session:${phoneNumber}`);
+    // Wait for the Redis connection to be established
+    await connectionPromise;
+    
+    let sessionData = await client.get(`session:${phoneNumber}`);
+    let session = sessionData ? JSON.parse(sessionData) : null;
     
     if (!session) {
       session = {
@@ -28,13 +32,13 @@ async function getSession(phoneNumber) {
         whatsappHistory: []
       };
       // Save the initial session
-      await kv.set(`session:${phoneNumber}`, session);
+      await client.set(`session:${phoneNumber}`, JSON.stringify(session));
     }
     
     return session;
   } catch (error) {
-    console.error(`[KV] Error getting session for ${phoneNumber}:`, error.message);
-    // Fallback to in-memory if KV fails (for local testing without KV)
+    console.error(`[Redis] Error getting session for ${phoneNumber}:`, error.message);
+    // Fallback to initial state if Redis fails
     return {
         mode: null,
         step: null,
@@ -45,24 +49,29 @@ async function getSession(phoneNumber) {
 }
 
 /**
- * Updates a session in Vercel KV.
+ * Updates a session in Redis.
  */
 async function updateSession(phoneNumber, updates) {
   try {
+    // Wait for the Redis connection to be established
+    await connectionPromise;
+    
     const session = await getSession(phoneNumber);
     const updatedSession = Object.assign(session, updates);
-    await kv.set(`session:${phoneNumber}`, updatedSession);
+    await client.set(`session:${phoneNumber}`, JSON.stringify(updatedSession));
     return updatedSession;
   } catch (error) {
-    console.error(`[KV] Error updating session for ${phoneNumber}:`, error.message);
+    console.error(`[Redis] Error updating session for ${phoneNumber}:`, error.message);
   }
 }
 
 async function clearSession(phoneNumber) {
   try {
-    await kv.del(`session:${phoneNumber}`);
+    // Wait for the Redis connection to be established
+    await connectionPromise;
+    await client.del(`session:${phoneNumber}`);
   } catch (error) {
-    console.error(`[KV] Error clearing session for ${phoneNumber}:`, error.message);
+    console.error(`[Redis] Error clearing session for ${phoneNumber}:`, error.message);
   }
 }
 
