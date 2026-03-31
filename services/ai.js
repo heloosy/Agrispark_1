@@ -3,20 +3,20 @@ const { GoogleGenAI } = require('@google/genai');
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // System Instruction based on the farming_assistant_prompt.md
+// The 'PhD Brain' of the AI, defining its personality and scientific mastery.
 const farmingAssistantSystemPrompt = `
-You are an expert AI-powered agronomist and farming assistant designed for voice calls (IVR) and WhatsApp follow-up.
+You are a PhD-level Senior Agronomist and Scientific Farming Consultant for AgriSpark. 
+You are NOT a basic chatbot; you are a data-driven expert providing laboratory-grade agricultural advice.
 
-Your goal is to:
-1. Quickly understand farmer intent.
-2. Provide EXTREMELY precise, scientific, and data-driven agricultural advice (not basic generic tips).
-3. Distinguish between Voice and Text: Voice answers MUST be short. WhatsApp Plans MUST be deeply detailed and calendar-driven.
+CORE PRINCIPLES:
+1. **SCIENTIFIC PRECISION**: Provide exact measurements (e.g., "50kg Urea/ha"), active chemical ingredients, and specific NPK ratios.
+2. **NO STALLING**: If a symptom like "yellow leaves" is mentioned, diagnose it IMMEDIATELY and provide 3 likely scientific causes.
+3. **AUTONOMOUS DIALOGUE**: Manage the conversation flow yourself. If you need details (Name, Location, Crop), ask for ONE at a time naturally while giving advice.
+4. **VALUE-FIRST**: Never say "I need more info first." Answer first, then ask.
 
------------------------------------
-LANGUAGE & STYLE RULES
------------------------------------
-- FOR VOICE: Speak in simple, short, conversational sentences (max 10-12 words).
-- FOR WHATSAPP PLANS: Be highly structured, detailed, and use agricultural best practices. Give exact calendars, water measurements, and soil preparation steps.
-- Avoid vague "water it well" advice. Say exactly when and how much based on the crop.
+FORMATTING:
+- FOR VOICE: Keep answers under 20 words for fast audio playback.
+- FOR WHATSAPP: Use structured lists and bolding (*header*). Provide 14-30 day management plans.
 `;
 
 // Model configuration for consistent output
@@ -103,36 +103,69 @@ async function generateFullPlan(formData) {
 }
 
 /**
+ * Autonomous Voice Response: Gemini manages the conversation flow naturally.
+ * Instead of robotic "Step 1, Step 2", Gemini decides what to ask next.
+ */
+async function getDynamicVoiceResponse(userInput, history = []) {
+  try {
+    const prompt = `
+    THE USER IS ON A LIVE PHONE CALL (IVR).
+    
+    Current User Input: "${userInput}"
+    
+    DIALOGUE RULES:
+    1. If you are missing crucial details (Name, Location, or Crop), ask for ONE of them naturally while providing advice.
+    2. If the user provides a symptom (e.g., "yellow leaves"), diagnose it IMMEDIATELY (e.g. "That sounds like Nitrogen deficiency...").
+    3. Keep response under 25 words for fast audio playback.
+    4. If you have enough info (Name, Location, Crop), tell the user: "I've sent your full 30-day manual to WhatsApp. Anything else?"
+    `;
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: [...history, { role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        systemInstruction: farmingAssistantSystemPrompt,
+        temperature: 0.6
+      }
+    });
+
+    return response.text;
+  } catch (error) {
+    console.error("AI Dynamic Voice Error:", error);
+    return "I am listening. Can you tell me more about your crop?";
+  }
+}
+
+/**
+ * Helper to convert a URL into a Gemini-compatible media part for vision analysis.
+ */
+async function getMediaPart(url) {
+    const axios = require('axios');
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const mimeType = response.headers['content-type'] || 'image/jpeg';
+    return {
+        inlineData: {
+            data: Buffer.from(response.data).toString('base64'),
+            mimeType: mimeType
+        }
+    };
+}
+
+/**
  * Handles conversational queries over WhatsApp, including image analysis and conversation history.
- * @param {string} userText - The current text message from the farmer.
- * @param {Array} history - Previous messages { role: 'user'|'model', parts: [{ text: '...' }] }
- * @param {string} imageUrl - (Optional) URL of an image sent by the farmer.
  */
 async function getWhatsAppChatResponse(userText, history = [], imageUrl = null) {
   try {
     const contents = [...history];
     
-    // Create the current prompt parts with explicit context for WhatsApp
     let promptContext = `
     THE USER IS MESSAGING YOU ON WHATSAPP.
     
-    TONE & STYLE:
-    - Use a HYBRID approach: Be friendly and conversational, but use STRUCTURE (lists/tables) for technical data.
-    - **CRITICAL**: Always acknowledge and repeat the user's specific question at the start of your response (e.g., "I see you're looking for the reason for yellowing in your paddy...").
-    - If the current message is a greeting (e.g., "Hello", "Hi") or a request for a reply, SCAN THE HISTORY for their real question and ANSWER IT NOW.
-    
-    RULES FOR WHATSAPP (VALUE FIRST):
-    - ONLY output the text for a WhatsApp message.
-    - NEVER include "VOICE RESPONSE" or sections labeled for voice calls.
-    - **STOP THE QUESTIONING**: Do NOT ask for "more info" if a direct request (like a calendar or diagnosis) is made.
-    - **NEVER** start with "Since you haven't specified your crop...". 
-    - provide an IMMEDIATE answer. 
-    - If you see a symptom like "yellow leaves," provide a scientific diagnosis (e.g., Nitrogen/Acidity) and treatment IMMEDIATELY.
-    - If you are missing details, provide the most likely scientific advice based on context. 
-    - If you need a growth stage for a plan and don't have it, ASSUME it is "Sowing" and give the plan starting from there. 
-    
-    FORMATTING: 
-    - Use WhatsApp bolding (*text*) sparingly for headers. Ensure a space exists BEFORE the first asterisk and AFTER the last one (e.g., " *Diagnosis:* ").
+    RULES:
+    - BE AN EXPERT: Use scientific names and exact dosages.
+    - NO STALLING: Answer first, then ask for missing info.
+    - ACKNOWLEDGE: Always repeat the user's core question.
+    - If the user says "Hello" and there's a pending question in history, ANSWER IT NOW.
     
     User Message: "${userText}"
     `;
@@ -140,7 +173,8 @@ async function getWhatsAppChatResponse(userText, history = [], imageUrl = null) 
     const currentParts = [{ text: promptContext }];
     
     if (imageUrl) {
-        currentParts.push({ text: `[Image Attachment: ${imageUrl}]` });
+        // Download and attach the image for vision analysis
+        currentParts.push(await getMediaPart(imageUrl));
     }
 
     contents.push({ role: 'user', parts: currentParts });
@@ -150,14 +184,14 @@ async function getWhatsAppChatResponse(userText, history = [], imageUrl = null) 
         contents: contents,
         config: { 
             systemInstruction: farmingAssistantSystemPrompt, 
-            temperature: 0.7 // Slightly higher temperature for more creative/detailed plans
+            temperature: 0.7 
         }
     });
 
     return response.text;
   } catch (error) {
     console.error("WhatsApp AI Error:", error);
-    return "I am sorry, I am having trouble connecting to my brain right now! Please try again later.";
+    return "I'm sorry, I'm having trouble connecting to my diagnostic brain! Please try again in a moment.";
   }
 }
 
@@ -167,23 +201,16 @@ async function getWhatsAppChatResponse(userText, history = [], imageUrl = null) 
 async function generateDetailedPlan(formData) {
   try {
     const prompt = `
-    You are an expert PhD Agronomist. Generate a 2000-word equivalent, highly technical 30-day farming manual.
+    Produce a 2000-word equivalent PhD-level farming manual.
     Farmer: ${formData.name} in ${formData.location}. Crop: ${formData.crop} at ${formData.stage} stage.
     
-    INCLUDE:
-    1. Soil Chemistry: Exact N-P-K ratios and Micronutrient needs (Zinc, Boron, etc).
-    2. 30-Day Master Calendar: Day-by-day tasks for 4 full weeks.
-    3. Water Engineering: Exact liters per plant per day, drip vs flood advantages.
-    4. Advanced Pest Management: Scientific names of 3 likely pests and exact chemical/organic concentrations (ml/L).
-    5. Harvest & Storage: How to tell when it's ripe and how to store to prevent rot.
-    
-    Use professional Markdown formatting with headers and tables.
+    INCLUDE: Soil Chemistry (NPK), 30-Day Master Calendar, Water Engineering, and Advanced Pest Management.
     `;
 
     const response = await ai.models.generateContent({
         model: modelName,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { systemInstruction: farmingAssistantSystemPrompt, temperature: 0.7 }
+        config: { systemInstruction: farmingAssistantSystemPrompt, temperature: 0.8 }
     });
     return response.text;
   } catch (error) {
@@ -192,9 +219,28 @@ async function generateDetailedPlan(formData) {
   }
 }
 
+/**
+ * Advanced Utility: Extracts structured data from conversation history.
+ */
+async function extractFarmerData(history) {
+    try {
+        const prompt = "Extract the following data as JSON from this conversation: { name, location, crop, stage }. If unknown, use 'Unknown'.";
+        const response = await ai.models.generateContent({
+            model: modelName,
+            contents: [...history, { role: 'user', parts: [{ text: prompt }] }],
+            config: { temperature: 0 }
+        });
+        return JSON.parse(response.text.replace(/```json|```/g, ''));
+    } catch (e) {
+        return { name: 'Unknown', location: 'Unknown', crop: 'Unknown', stage: 'Unknown' };
+    }
+}
+
 module.exports = {
   getQuickResponse,
   generateFullPlan,
   getWhatsAppChatResponse,
-  generateDetailedPlan
+  getDynamicVoiceResponse,
+  generateDetailedPlan,
+  extractFarmerData
 };
