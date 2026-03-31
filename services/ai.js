@@ -8,17 +8,18 @@ const farmingAssistantSystemPrompt = `
 You are a PhD-level Senior Agronomist for AgriSpark. 
 You provide high-speed, laboratory-grade agricultural advice. 
 
-EFFICIENT DISCOVERY (Option 2 - Detailed Plan):
-Collect these 3 groups in as few turns as possible (you can group questions):
-1. **Identity**: Name & General Location.
-2. **Environment**: Soil Type & Terrain (Flat/Sloped).
-3. **Current Goal**: Current Crop, Past Crop history, and current Stage.
+MANDATORY 7-POINT DISCOVERY (Option 2 - Detailed Plan):
+Collect these 7 points efficiently (grouping is encouraged):
+1. **Name** & **General Location**.
+2. **Past Crop** (History).
+3. **Target Crop** (Which crop you want to grow).
+4. **Soil Type** & **Terrain Type** (Flat/Sloped/Hilly).
+5. **Current Stage** (Sowing, Growing, Flowing, etc.).
 
 CORE RULES:
-- **ADVICE-FIRST**: If the farmer mentions a problem (e.g. "Yellow leaves"), DIAGNOSE IT IMMEDIATELY (25 words max) before asking for missing context.
-- **SPEED**: Group questions (e.g., "Hi! Can I get your name and location to start?")
-- **SCIENTIFIC PRECISION**: Always provide exact chemicals (e.g., "Mancozeb") and dosages.
-- **INTERCROPPING**: Once discovery is done, suggest **one** side-crop and a **future rotation** in the final WhatsApp plan.
+- **ADVICE-FIRST**: If the farmer mentions a problem, DIAGNOSE IT IMMEDIATELY (25 words max) before continuing the checklist.
+- **SPEED**: Group questions to minimize turns.
+- **INTERCROPPING**: Once all 7 points are known, suggest **one** side-crop and a **future rotation**.
 - **EXIT**: ONLY when all groups are collected, say: "I've sent your advanced manual to WhatsApp. TERMINATE_CALL"
 
 FORMATTING:
@@ -86,15 +87,15 @@ async function generateFullPlan(formData) {
     
     Context:
     Farmer: ${formData.name} in ${formData.location}
-    Soil: ${formData.soilType} | Terrain: ${formData.terrain}
-    Past Crop: ${formData.pastCrop} | Current Crop: ${formData.crop} (${formData.stage})
+    Soil: ${formData.soilType} | Terrain: ${formData.terrainType}
+    Target Crop: ${formData.targetCrop} | Past: ${formData.pastCrop} | Stage: ${formData.stage}
     
     Include:
-    - *Soil & Terrain Strategy:* (NPK ratios + Erosion engineering for ${formData.terrain})
+    - *Soil & Terrain Strategy:* (NPK ratios + Erosion engineering for ${formData.terrainType})
     - *30-Day Task Calendar:* (Phases with • bullets)
-    - *Future Crop Rotation:* (Suggest a new crop to follow current harvest based on ${formData.pastCrop})
+    - *Target Crop Optimization:* (Specific density and timing for ${formData.targetCrop})
     - *Companion Side-Crops:* (2 scientific intercropping suggestions for yield & nitrogen)
-    - *Risk Control:* (Pest precautions)
+    - *Risk Control:* (Pest precautions based on ${formData.pastCrop})
     `;
     const response = await ai.models.generateContent({
       model: modelName,
@@ -213,13 +214,13 @@ async function generateDetailedPlan(formData) {
     const prompt = `
     Produce a 2000-word equivalent PhD-level farming manual.
     Farmer: ${formData.name} in ${formData.location}.
-    Soil: ${formData.soilType} | Terrain: ${formData.terrain}
-    Current Crop: ${formData.crop} | Past: ${formData.pastCrop}
+    Soil: ${formData.soilType} | Terrain: ${formData.terrainType}
+    Target Crop: ${formData.targetCrop} | Past: ${formData.pastCrop}
     
     INCLUDE DEEP ANALYSIS:
     1. Soil Chemistry (NPK balancing for ${formData.soilType})
-    2. Terrain Engineering (Hydrology & Erosion control for ${formData.terrain})
-    3. Side-Crops & Intercropping (2-3 biological companions for ${formData.crop})
+    2. Terrain Engineering (Hydrology & Erosion control for ${formData.terrainType})
+    3. Side-Crops & Intercropping (2-3 biological companions for ${formData.targetCrop})
     4. 30-Day Master Calendar from the ${formData.stage} stage.
     `;
 
@@ -240,14 +241,14 @@ async function generateDetailedPlan(formData) {
  */
 async function extractFarmerData(history) {
   try {
-    const prompt = `Extract exactly 6 data points from this conversation as JSON:
+    const prompt = `Extract exactly 7 data points from this conversation as JSON:
     { 
       "name": "...", 
       "location": "...", 
-      "crop": "...", 
+      "targetCrop": "...", 
       "pastCrop": "...", 
       "soilType": "...", 
-      "terrain": "...",
+      "terrainType": "...",
       "stage": "..."
     } 
     If unknown, use "Unknown". Use lower case for keys.`;
@@ -259,7 +260,7 @@ async function extractFarmerData(history) {
     });
     return JSON.parse(response.text.replace(/```json|```/g, ''));
   } catch (e) {
-    return { name: 'Unknown', location: 'Unknown', crop: 'Unknown', pastCrop: 'Unknown', soilType: 'Unknown', terrain: 'Unknown', stage: 'Unknown' };
+    return { name: 'Unknown', location: 'Unknown', targetCrop: 'Unknown', pastCrop: 'Unknown', soilType: 'Unknown', terrainType: 'Unknown', stage: 'Unknown' };
   }
 }
 
