@@ -1,10 +1,15 @@
-const { createClient } = require('@vercel/kv');
+const { createClient } = require('redis');
 
-// Initialize Vercel KV client
-// The user used the prefix 'STORAGE' in their Vercel dashboard.
-const kv = createClient({
-  url: process.env.STORAGE_REST_API_URL,
-  token: process.env.STORAGE_REST_API_TOKEN,
+// Initialize Redis client using the REDIS_URL from your Vercel screenshot
+const client = createClient({
+  url: process.env.REDIS_URL || process.env.STORAGE_URL // Support both common names
+});
+
+client.on('error', err => console.error('Redis Client Error', err));
+
+// Connect to Redis (this is required for the 'redis' package v4+)
+const connectionPromise = client.connect().catch(err => {
+    console.error("Initial Redis connection failed:", err.message);
 });
 
 /**
