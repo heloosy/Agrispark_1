@@ -142,66 +142,48 @@ app.post('/voice/quick-query', async (req, res) => {
   res.send(twiml.toString());
 });
 
-// FULL ASSISTANCE MODE HANDLER
+// FULL ASSISTANCE MODE HANDLER (AUTONOMOUS AI)
 app.post('/voice/full-assistance', async (req, res) => {
-  // If outbound call, the user is the 'To' number. If inbound, user is 'From'.
   const callerId = req.body.Direction === 'outbound-api' ? req.body.To : req.body.From;
-  const userInput = req.body.SpeechResult || 'Unknown';
+  const userInput = req.body.SpeechResult || 'Hello';
   const twiml = new twilio.twiml.VoiceResponse();
   
-  // Extract state from query params (Vercel is stateless)
-  const step = req.query.step;
-  const name = req.query.name || 'Unknown';
-  const location = req.query.location || 'Unknown';
-  const crop = req.query.crop || 'Unknown';
-
+  const session = await getSession(callerId);
   const cleanInput = sanitizeInput(userInput);
 
-  if (step === 'name') {
-    twiml.say("Where is your farm located?");
-    twiml.gather({
-      input: 'speech',
-      action: `/voice/full-assistance?step=location&name=${encodeURIComponent(cleanInput)}`,
-      timeout: 4
-    });
-  } else if (step === 'location') {
-    twiml.say("What crop are you currently growing?");
-    twiml.gather({
-      input: 'speech',
-      action: `/voice/full-assistance?step=crop&name=${encodeURIComponent(name)}&location=${encodeURIComponent(cleanInput)}`,
-      timeout: 4
-    });
-  } else if (step === 'crop') {
-    twiml.say("What stage is your crop at? For example, sowing, growing, or harvest.");
-    twiml.gather({
-      input: 'speech',
-      action: `/voice/full-assistance?step=stage&name=${encodeURIComponent(name)}&location=${encodeURIComponent(location)}&crop=${encodeURIComponent(cleanInput)}`,
-      timeout: 5
-    });
-  } else if (step === 'stage') {
-    // All questions answered
-    twiml.say("I’ve created your personalized farming plan. It will be sent to your WhatsApp shortly. Thank you for calling!");
-    twiml.hangup();
-
-    // Vercel immediately freezes background tasks when res.send() fires.
-    // So we MUST strictly 'await' the WhatsApp sending before ending the webhook block!
-    console.log(`[Vercel Sync] Waiting for WhatsApp to successfully send to ${callerId}...`);
-    
-    // Package all the gathered data together
-    const formData = {
-      name: name,
-      location: location,
-      crop: crop,
-      stage: cleanInput // The last speech result
-    };
-    
-    await generateAndSendWhatsApp(callerId, formData);
-  } else {
-    // Session expired fallback
-    twiml.say("Session expired. Please call again.");
-    twiml.hangup();
-  }
+  // Generate the autonomous PhD response
+  const aiResponse = await ai.getDynamicVoiceResponse(cleanInput, session.voiceHistory);
   
+  // Persist the segment for context
+  session.voiceHistory.push({ role: 'user', parts: [{ text: cleanInput }] });
+  session.voiceHistory.push({ role: 'model', parts: [{ text: aiResponse }] });
+  
+  // Prune history for IVR speed (Keep last 3 turns)
+  if (session.voiceHistory.length > 6) session.voiceHistory.splice(0, 2);
+  await updateSession(callerId, session);
+
+  // Check if Gemini is finalizing the dialogue
+  if (aiResponse.toLowerCase().includes("whatsapp") || aiResponse.toLowerCase().includes("manual")) {
+    twiml.say(aiResponse);
+    twiml.hangup();
+    
+    // Asynchronously extract data and send the plan!
+    (async () => {
+        const formData = await ai.extractFarmerData(session.voiceHistory);
+        await generateAndSendWhatsApp(callerId, formData);
+        // Reset the voice history after successful delivery
+        await updateSession(callerId, { voiceHistory: [] });
+    })();
+  } else {
+    // Keep the conversation going
+    const gather = twiml.gather({
+      input: 'speech',
+      action: '/voice/full-assistance',
+      timeout: 4
+    });
+    gather.say(aiResponse);
+  }
+
   res.type('text/xml');
   res.send(twiml.toString());
 });
