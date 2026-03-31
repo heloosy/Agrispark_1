@@ -29,7 +29,8 @@ async function getSession(phoneNumber) {
         mode: null,
         step: null,
         data: {},
-        whatsappHistory: []
+        whatsappHistory: [],
+        voiceHistory: []
       };
       // Save the initial session
       await client.set(`session:${phoneNumber}`, JSON.stringify(session));
