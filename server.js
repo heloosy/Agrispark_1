@@ -247,30 +247,33 @@ app.post('/whatsapp', async (req, res) => {
 // WHATSAPP HELPER
 async function generateAndSendWhatsApp(toPhone, formData) {
   try {
+    console.log(`[📨 WhatsApp] Starting dispatch for ${formData.name}...`);
     const summaryPlan = await ai.generateFullPlan(formData);
     
     // Create the public link for the detailed PDF version
     const isLocal = !process.env.VERCEL;
-    const host = isLocal ? 'localhost:3000' : 'agrispark-lilac.vercel.app';
+    // DYNAMIC HOST: Use VERCEL_URL if available, otherwise fallback to local/hardcoded
+    const host = process.env.VERCEL_URL || (isLocal ? 'localhost:3000' : 'agrispark-lilac.vercel.app');
     const protocol = isLocal ? 'http' : 'https';
     
     // Pass ALL 7 points to the detailed manual view
     const detailedLink = `${protocol}://${host}/view-plan?name=${encodeURIComponent(formData.name)}&location=${encodeURIComponent(formData.location)}&targetCrop=${encodeURIComponent(formData.targetCrop)}&pastCrop=${encodeURIComponent(formData.pastCrop)}&soilType=${encodeURIComponent(formData.soilType)}&terrainType=${encodeURIComponent(formData.terrainType)}&stage=${encodeURIComponent(formData.stage)}`;
 
-    const fullMessage = `${summaryPlan}\n\n📖 *GET YOUR ADVANCED 6-POINT PDF MANUAL:* \n${detailedLink}`;
+    const fullMessage = `${summaryPlan}\n\n📖 *GET YOUR ADVANCED 7-POINT PDF MANUAL:* \n${detailedLink}`;
 
     // Twilio WhatsApp formatting
     let toWhatsApp = toPhone.startsWith('whatsapp:') ? toPhone : `whatsapp:${toPhone}`;
 
-    await twilioClient.messages.create({
+    console.log(`[🚀 Sending] Dispatching to Twilio: ${toWhatsApp}`);
+    const message = await twilioClient.messages.create({
       body: fullMessage,
       from: process.env.TWILIO_WHATSAPP_NUMBER,
       to: toWhatsApp
     });
 
-    console.log(`Plan successfully sent to ${toWhatsApp}`);
+    console.log(`[✅ Success] WhatsApp sent! SID: ${message.sid}`);
   } catch (error) {
-    console.error("Failed to send WhatsApp message:", error);
+    console.error("[❌ WhatsApp Error]:", error.message);
   }
 }
 
