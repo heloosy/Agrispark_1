@@ -170,37 +170,30 @@ app.post('/voice/full-assistance', async (req, res) => {
   const cleanResponse = aiResponse.replace("TERMINATE_CALL", "").trim();
 
   if (isFinalStep) {
+    // Say the final message BEFORE we do the expensive extraction work
     twiml.say(cleanResponse);
     twiml.hangup();
-    
-    // Async background task for WhatsApp delivery
-    (async () => {
-        const formData = await ai.extractFarmerData(session.voiceHistory);
-        await generateAndSendWhatsApp(callerId, formData);
-        await updateSession(callerId, { voiceHistory: [] });
-    })();
+
+    // Await the actual work before the function terminates
+    const formData = await ai.extractFarmerData(session.voiceHistory);
+    await generateAndSendWhatsApp(callerId, formData);
+    await updateSession(callerId, { voiceHistory: [] }); // Reset for next call
   } else {
     // Keep the conversation alive with a gather and a fallback redirect
     const gather = twiml.gather({
       input: 'speech',
       action: '/voice/full-assistance',
-      timeout: 4,
+      timeout: 5,
       speechTimeout: 'auto'
     });
-    gather.say(aiResponse);
+    gather.say(cleanResponse);
     
-    // IF THE USER IS SILENT during the gather, this redirect will loop back to /voice/full-assistance
-    // We send a default empty result to trigger the 'I am listening' response from AI.
     // SILENCE PROTECTION: Loop back to full-assistance if no speech detected
     twiml.redirect('/voice/full-assistance');
+    
+    // Ensure history is saved for the next turn
+    await updateSession(callerId, { voiceHistory: session.voiceHistory });
   }
-
-  // --- SAVE CONVERSATION HISTORY ---
-  session.voiceHistory.push({ role: 'user', parts: [{ text: cleanInput }] });
-  session.voiceHistory.push({ role: 'model', parts: [{ text: aiResponse }] });
-
-  // Ensure and await session save before response
-  await updateSession(callerId, { voiceHistory: session.voiceHistory });
 
   res.type('text/xml');
   res.send(twiml.toString());
