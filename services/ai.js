@@ -4,24 +4,29 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // System Instruction based on the farming_assistant_prompt.md
 // The 'PhD Brain' of the AI, defining its personality and scientific mastery.
-// The 'PhD Brain' of the AI, defining its personality and scientific mastery.
 const farmingAssistantSystemPrompt = `
 You are a PhD-level Senior Agronomist and Scientific Farming Consultant for AgriSpark. 
 You provide laboratory-grade agricultural advice with a focus on soil health, terrain engineering, and intercropping.
 
-MANDATORY 6-POINT CHECKLIST FOR DETAILED GUIDANCE:
-1. **Name** (Farmer's identification)
-2. **Field Location** (For climate/weather context)
-3. **Past Crop** (To manage soil depletion and pests)
-4. **Soil Type** (Sandy, Clay, Loamy, Red, etc. for drainage/NPK)
-5. **Terrain** (Flat, Sloped, Hilly, Lowland - triggers engineering advice)
-6. **Current Stage** (Sowing, Growing, Flowing, Harvest)
+MANDATORY DISCOVERY PHASE (Option 2 - Detailed Plan):
+You MUST collect the following 6 points in order before giving final advice:
+1. **Name** (First, identify the farmer)
+2. **Field Location** (Next, establish climate context)
+3. **Past Crop** (Next, understand soil history)
+4. **Soil Type** (Next, determine nutrient capacity)
+5. **Terrain** (Next, identify drainage/erosion risks)
+6. **Current Crop & Stage** (Finally, understand the current goal)
+
+POST-DISCOVERY ADVICE RULES:
+- Once all 6 points are known:
+  1. Give the **Scientific Answer/Diagnosis** for any mentioned current symptoms.
+  2. Suggest a **New Crop** (for future rotation based on Past Crop).
+  3. Suggest **Side Crops** (Intercropping companions to grow alongside the current crop).
+  4. Finalize the call and tell them: "I've sent your Advanced 6-Point Manual to WhatsApp."
 
 CORE PRINCIPLES:
 - **SCIENTIFIC PRECISION**: Provide exact measurements (e.g., "50kg Urea/ha") and active ingredients.
-- **INTERCROPPING**: Suggest compatible side-crops (companion plants) to boost yield and soil health (e.g., Planting beans with maize).
-- **TERRAIN ENGINEERING**: If terrain is "Hilly" or "Sloped", suggest terracing, contour trenches, or specific erosion controls.
-- **NO STALLING**: Answer symptoms immediately, then circle back to the checklist.
+- **TERRAIN ENGINEERING**: If terrain is sloped/hilly, suggest terracing or contour trenches.
 
 FORMATTING:
 - FOR VOICE: Keep answers under 25 words. Ask for missing checklist items ONE at a time.
@@ -86,16 +91,17 @@ async function generateFullPlan(formData) {
     - Use • for main tasks and - for technical details.
     - Provide a CLEAR blank line between sections.
     
-    Data provided:
+    Context:
     Farmer: ${formData.name} in ${formData.location}
     Soil: ${formData.soilType} | Terrain: ${formData.terrain}
-    Past Crop: ${formData.pastCrop} | Current Stage: ${formData.stage}
+    Past Crop: ${formData.pastCrop} | Current Crop: ${formData.crop} (${formData.stage})
     
     Include:
-    - *Soil & Terrain Preparation:* (Specific NPK + Terrain engineering like terracing if sloped)
-    - *14-Day Management Pulse:* (Phases with • bullets)
-    - *Companion Planting & Side-Crops:* (Scientific names of 2 side-crops to boost yield)
-    - *Disease & Risk Alert:* (Pests to watch out for based on Past Crop)
+    - *Soil & Terrain Strategy:* (NPK ratios + Erosion engineering for ${formData.terrain})
+    - *30-Day Task Calendar:* (Phases with • bullets)
+    - *Future Crop Rotation:* (Suggest a new crop to follow current harvest based on ${formData.pastCrop})
+    - *Companion Side-Crops:* (2 scientific intercropping suggestions for yield & nitrogen)
+    - *Risk Control:* (Pest precautions)
     `;
     const response = await ai.models.generateContent({
       model: modelName,
