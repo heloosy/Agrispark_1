@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Farming AI Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 70%);
+    }
+    .container {
+      background: var(--card);
+      padding: 3rem;
+      border-radius: 1.5rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p {
+      color: var(--text-muted);
+      margin-bottom: 2rem;
+      line-height: 1.5;
+      font-size: 0.95rem;
+    }
+    input {
+      width: 100%;
+      padding: 1rem;
+      border-radius: 0.75rem;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: white;
+      font-size: 1rem;
+      box-sizing: border-box;
+      margin-bottom: 1.5rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus {
+      border-color: var(--primary);
+    }
+    button {
+      width: 100%;
+      padding: 1rem;
+      border-radius: 0.75rem;
+      border: none;
+      background: var(--primary);
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39);
+    }
+    button:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.23);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    button:disabled {
+      background: #334155;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+    .status {
+      margin-top: 1.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      min-height: 20px;
+    }
+    .success { color: #34d399; }
+    .error { color: #ef4444; }
+    .loader {
+      display: inline-block;
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      display: none;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Smart Farming AI</h1>
+    <p>Enter your phone number below to instantly trigger a live AI Voice Call from Twilio.</p>
+    
+    <input type="tel" id="phone" placeholder="+91 Your Number" />
+    
+    <button id="callBtn" onclick="makeCall()">
+      <div class="loader" id="loader"></div>
+      <span id="btnText">Call My Phone</span>
+    </button>
+    
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    async function makeCall() {
+      const phoneInput = document.getElementById('phone').value.trim();
+      const statusDiv = document.getElementById('status');
+      const btn = document.getElementById('callBtn');
+      const btnText = document.getElementById('btnText');
+      const loader = document.getElementById('loader');
+
+      if (!phoneInput || !phoneInput.startsWith('+')) {
+        statusDiv.textContent = 'Please enter a valid format including your Country Code (e.g. +91)';
+        statusDiv.className = 'status error';
+        return;
+      }
+
+      // UI Loading state
+      btn.disabled = true;
+      btnText.textContent = 'Calling...';
+      loader.style.display = 'inline-block';
+      statusDiv.textContent = '';
+
+      try {
+        const response = await fetch('/api/call', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: phoneInput })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          statusDiv.innerHTML = 'Success! Your phone is ringing now. 🚜<br><small>Pick up to talk to the AI.</small>';
+          statusDiv.className = 'status success';
+        } else {
+          statusDiv.textContent = 'Error: ' + data.error;
+          statusDiv.className = 'status error';
+        }
+      } catch (err) {
+        statusDiv.textContent = 'Network Error: Check console.';
+        statusDiv.className = 'status error';
+      } finally {
+        // Reset UI
+        btn.disabled = false;
+        btnText.textContent = 'Call My Phone';
+        loader.style.display = 'none';
+      }
+    }
+  </script>
+</body>
+</html>
