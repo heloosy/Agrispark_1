@@ -39,12 +39,13 @@ async function getSession(phoneNumber) {
     return session;
   } catch (error) {
     console.error(`[Redis] Error getting session for ${phoneNumber}:`, error.message);
-    // Fallback to initial state if Redis fails
+    // FALLBACK: Always return a valid session object with history arrays to prevent crashes or amnesia
     return {
         mode: null,
         step: null,
         data: {},
-        whatsappHistory: []
+        whatsappHistory: [],
+        voiceHistory: []
     };
   }
 }
