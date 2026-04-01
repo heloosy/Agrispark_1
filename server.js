@@ -165,21 +165,30 @@ app.post('/voice/full-assistance', async (req, res) => {
   if (session.voiceHistory.length > 6) session.voiceHistory.splice(0, 2);
   await updateSession(callerId, session);
 
-  // Check if Gemini is finalizing the dialogue with the secret signal
+  // Check for specialized triggers
+  const isDispatchStep = aiResponse.includes("DISPATCH_WHATSAPP");
   const isFinalStep = aiResponse.includes("TERMINATE_CALL");
-  const cleanResponse = aiResponse.replace("TERMINATE_CALL", "").trim();
+  
+  // Clean the text for user-facing audio
+  let cleanResponse = aiResponse.replace("DISPATCH_WHATSAPP", "").replace("TERMINATE_CALL", "").trim();
 
+  // 1. FORCED DISPATCH (Triggered after 7-point consultation)
+  if (isDispatchStep) {
+    console.log(`[🚀 MID-CALL DISPATCH] Extracting data for ${callerId}...`);
+    // Non-blocking background task (but awaited for Vercel stability)
+    (async () => {
+        const formData = await ai.extractFarmerData(session.voiceHistory);
+        await generateAndSendWhatsApp(callerId, formData);
+    })();
+  }
+
+  // 2. TERMINATION LOGIC
   if (isFinalStep) {
-    // Say the final message BEFORE we do the expensive extraction work
     twiml.say(cleanResponse);
     twiml.hangup();
-
-    // Await the actual work before the function terminates
-    const formData = await ai.extractFarmerData(session.voiceHistory);
-    await generateAndSendWhatsApp(callerId, formData);
     await updateSession(callerId, { voiceHistory: [] }); // Reset for next call
   } else {
-    // Keep the conversation alive with a gather and a fallback redirect
+    // 3. CONTINUED CONVERSATION
     const gather = twiml.gather({
       input: 'speech',
       action: '/voice/full-assistance',
@@ -187,11 +196,9 @@ app.post('/voice/full-assistance', async (req, res) => {
       speechTimeout: 'auto'
     });
     gather.say(cleanResponse);
-    
-    // SILENCE PROTECTION: Loop back to full-assistance if no speech detected
     twiml.redirect('/voice/full-assistance');
     
-    // Ensure history is saved for the next turn
+    // Save history for next turn
     await updateSession(callerId, { voiceHistory: session.voiceHistory });
   }
 
