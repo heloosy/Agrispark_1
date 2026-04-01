@@ -266,10 +266,11 @@ async function extractFarmerData(history) {
     const response = await ai.models.generateContent({
       model: modelName,
       contents: [...history, { role: 'user', parts: [{ text: prompt }] }],
-      config: { temperature: 0 }
+      config: { temperature: 0, responseMimeType: "application/json" }
     });
-    return JSON.parse(response.text.replace(/```json|```/g, ''));
+    return JSON.parse(response.text);
   } catch (e) {
+    console.error("[Data Extraction Error]:", e.message);
     return { name: 'Unknown', location: 'Unknown', targetCrop: 'Unknown', pastCrop: 'Unknown', soilType: 'Unknown', terrainType: 'Unknown', stage: 'Unknown' };
   }
 }
