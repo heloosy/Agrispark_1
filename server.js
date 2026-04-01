@@ -208,6 +208,39 @@ app.post('/voice/full-assistance', async (req, res) => {
   res.send(twiml.toString());
 });
 
+// --- NEW ROUTE: DIRECT PDF GENERATOR ---
+// This route generates a professional 30-day manual on-the-fly and serves it as a PDF file.
+app.get('/api/plan-pdf', async (req, res) => {
+  const { name, location, targetCrop, pastCrop, soilType, terrainType, stage } = req.query;
+  const formData = {
+    name: name || 'Valued Farmer',
+    location: location || 'Regional Area',
+    targetCrop: targetCrop || 'Your Specified Crop',
+    pastCrop: pastCrop || 'Previous Crop',
+    soilType: soilType || 'Standard Soil',
+    terrainType: terrainType || 'Standard Terrain',
+    stage: stage || 'Growing Phase'
+  };
+
+  try {
+    console.log(`[📄 PDF Route] Generating on-the-fly for ${formData.name}...`);
+    // 1. Generate the detailed text from AI
+    const detailedPlan = await ai.generateDetailedPlan(formData);
+    
+    // 2. Convert to PDF buffer
+    const pdfBuffer = await ai.generatePdfBuffer(detailedPlan, formData);
+
+    // 3. Serve as PDF stream
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=AgriSpark_Manual_${formData.targetCrop.replace(/\s+/g, '_')}.pdf`);
+    res.send(pdfBuffer);
+    console.log(`[✅ PDF Sent] Delivered PDF buffer to requestor.`);
+  } catch (error) {
+    console.error("[❌ PDF Route Error]:", error.message);
+    res.status(500).send("Error generating PDF manual. Please try again.");
+  }
+});
+
 // Renders the beautiful print-ready plan template
 app.get('/view-plan', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'plan_template.html'));
@@ -278,16 +311,17 @@ async function generateAndSendWhatsApp(toPhone, formData) {
     const protocol = isLocal ? 'http' : 'https';
     
     // Pass ALL 7 points to the detailed manual view
-    const detailedLink = `${protocol}://${host}/view-plan?name=${encodeURIComponent(formData.name)}&location=${encodeURIComponent(formData.location)}&targetCrop=${encodeURIComponent(formData.targetCrop)}&pastCrop=${encodeURIComponent(formData.pastCrop)}&soilType=${encodeURIComponent(formData.soilType)}&terrainType=${encodeURIComponent(formData.terrainType)}&stage=${encodeURIComponent(formData.stage)}`;
+    const pdfLink = `${protocol}://${host}/api/plan-pdf?name=${encodeURIComponent(formData.name)}&location=${encodeURIComponent(formData.location)}&targetCrop=${encodeURIComponent(formData.targetCrop)}&pastCrop=${encodeURIComponent(formData.pastCrop)}&soilType=${encodeURIComponent(formData.soilType)}&terrainType=${encodeURIComponent(formData.terrainType)}&stage=${encodeURIComponent(formData.stage)}`;
 
-    const fullMessage = `${summaryPlan}\n\n📖 *GET YOUR ADVANCED 7-POINT PDF MANUAL:* \n${detailedLink}`;
+    const fullMessage = `${summaryPlan}\n\n📖 *YOUR PROFESSIONAL 30-DAY PDF MANUAL IS ATTACHED BELOW*`;
 
     // Twilio WhatsApp formatting
     let toWhatsApp = toPhone.startsWith('whatsapp:') ? toPhone : `whatsapp:${toPhone}`;
 
-    console.log(`[🚀 Sending] Dispatching to Twilio: ${toWhatsApp}`);
+    console.log(`[🚀 Sending] Dispatching PDF attachment to Twilio: ${toWhatsApp}`);
     const message = await twilioClient.messages.create({
       body: fullMessage,
+      mediaUrl: [pdfLink], // ATTACH THE PDF FILE DIRECTLY
       from: process.env.TWILIO_WHATSAPP_NUMBER,
       to: toWhatsApp
     });
