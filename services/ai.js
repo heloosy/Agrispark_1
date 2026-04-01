@@ -30,7 +30,7 @@ FORMATTING:
 `;
 
 // Model configuration for consistent output
-const modelName = 'gemini-1.5-flash';
+const modelName = 'gemini-3.1-flash-lite-preview';
 
 /**
  * Gets a quick response for the IVR "Quick Query" mode (Option 1).
