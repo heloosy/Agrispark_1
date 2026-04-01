@@ -1,4 +1,5 @@
 const { GoogleGenAI } = require('@google/genai');
+const PDFDocument = require('pdfkit');
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -275,11 +276,66 @@ async function extractFarmerData(history) {
   }
 }
 
+/**
+ * Advanced Utility: Generates a professional PDF buffer using PDFKit.
+ */
+async function generatePdfBuffer(planText, formData) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      let buffers = [];
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => {
+        resolve(Buffer.concat(buffers));
+      });
+      doc.on('error', reject);
+
+      // --- BRANDING & HEADER ---
+      doc.fillColor('#1a4d2e').fontSize(24).text('AgriSpark | Professional Manual', { align: 'center' });
+      doc.moveDown(0.5);
+      doc.fillColor('#444444').fontSize(10).text(`Generated for ${formData.name} • ${new Date().toLocaleDateString()}`, { align: 'center' });
+      doc.moveDown();
+      doc.strokeColor('#cccccc').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveDown();
+
+      // --- FARM METADATA ---
+      doc.fillColor('#000000').fontSize(14).text('FARM PROFILE', { underline: true });
+      doc.fontSize(11);
+      const startY = doc.y + 5;
+      doc.text(`Location: ${formData.location}`, 50, startY);
+      doc.text(`Soil Type: ${formData.soilType}`, 50, doc.y + 2);
+      doc.text(`Target Crop: ${formData.targetCrop}`, 300, startY);
+      doc.text(`Terrain: ${formData.terrainType}`, 300, doc.y - 13);
+      doc.moveDown(2);
+
+      // --- THE PLAN CONTENT ---
+      doc.fillColor('#1a4d2e').fontSize(16).text('YOUR 30-DAY STRATEGIC PLAN', { underline: true });
+      doc.moveDown();
+      doc.fillColor('#000000').fontSize(11).text(planText, { 
+        align: 'justify',
+        lineGap: 4,
+        paragraphGap: 10
+      });
+
+      // --- FOOTER ---
+      doc.moveDown(3);
+      doc.strokeColor('#eeeeee').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveDown();
+      doc.fillColor('#888888').fontSize(9).text('AgriSpark PhD AI Agronomist Systems • Confidential Agricultural Advice', { align: 'center', italic: true });
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 module.exports = {
   getQuickResponse,
   generateFullPlan,
   getWhatsAppChatResponse,
   getDynamicVoiceResponse,
   generateDetailedPlan,
-  extractFarmerData
+  extractFarmerData,
+  generatePdfBuffer
 };
