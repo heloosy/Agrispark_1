@@ -174,12 +174,14 @@ app.post('/voice/full-assistance', async (req, res) => {
 
   // 1. FORCED DISPATCH (Triggered after 7-point consultation)
   if (isDispatchStep) {
-    console.log(`[🚀 MID-CALL DISPATCH] Extracting data for ${callerId}...`);
-    // Non-blocking background task (but awaited for Vercel stability)
-    (async () => {
+    console.log(`[🚀 MID-CALL DISPATCH] Awaiting data extraction for ${callerId}...`);
+    try {
         const formData = await ai.extractFarmerData(session.voiceHistory);
         await generateAndSendWhatsApp(callerId, formData);
-    })();
+        console.log(`[📬 DISPATCH] Handover to Twilio complete for ${callerId}`);
+    } catch (dispatchErr) {
+        console.error(`[❌ DISPATCH ERROR]:`, dispatchErr.message);
+    }
   }
 
   // 2. TERMINATION LOGIC
