@@ -161,8 +161,8 @@ app.post('/voice/full-assistance', async (req, res) => {
   session.voiceHistory.push({ role: 'user', parts: [{ text: cleanInput }] });
   session.voiceHistory.push({ role: 'model', parts: [{ text: aiResponse }] });
   
-  // Prune history for IVR speed (Keep last 3 turns)
-  if (session.voiceHistory.length > 6) session.voiceHistory.splice(0, 2);
+  // Prune history for IVR speed (Keep last 10 turns / 20 messages)
+  if (session.voiceHistory.length > 20) session.voiceHistory.splice(0, 2);
   await updateSession(callerId, session);
 
   // Check for specialized triggers
@@ -236,7 +236,19 @@ app.post('/whatsapp', async (req, res) => {
       // Get AI response with history and optional image
       const aiReply = await ai.getWhatsAppChatResponse(incomingMsg, session.whatsappHistory, mediaUrl);
       
-      // Update history (keep last 5 interactions / 10 messages)
+      // SCRUB SECRET KEYWORDS before sending to user
+      const isDispatch = aiReply.includes("DISPATCH_WHATSAPP");
+      const cleanReply = aiReply.replace("DISPATCH_WHATSAPP", "").replace("TERMINATE_CALL", "").trim();
+
+      // Trigger Background PDF Generation if consultation is complete
+      if (isDispatch) {
+          (async () => {
+              const formData = await ai.extractFarmerData(session.whatsappHistory);
+              await generateAndSendWhatsApp(senderNumber, formData);
+          })();
+      }
+
+      // Update history with raw response for context
       session.whatsappHistory.push({ role: 'user', parts: [{ text: incomingMsg + (mediaUrl ? ` [Image: ${mediaUrl}]` : '') }] });
       session.whatsappHistory.push({ role: 'model', parts: [{ text: aiReply }] });
       if (session.whatsappHistory.length > 10) session.whatsappHistory.splice(0, 2);
@@ -244,7 +256,7 @@ app.post('/whatsapp', async (req, res) => {
       // Persist the history to Vercel KV
       await updateSession(senderNumber, { whatsappHistory: session.whatsappHistory });
 
-      twiml.message(aiReply);
+      twiml.message(cleanReply);
   }
 
   res.type('text/xml');
