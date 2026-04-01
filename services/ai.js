@@ -30,7 +30,7 @@ FORMATTING:
 `;
 
 // Model configuration for consistent output
-const modelName = 'gemini-3.1-flash-lite-preview';
+const modelName = 'gemini-1.5-flash';
 
 /**
  * Gets a quick response for the IVR "Quick Query" mode (Option 1).
@@ -151,7 +151,13 @@ async function getDynamicVoiceResponse(userInput, history = []) {
  */
 async function getMediaPart(url) {
   const axios = require('axios');
-  const response = await axios.get(url, { responseType: 'arraybuffer' });
+  const response = await axios.get(url, { 
+    responseType: 'arraybuffer',
+    auth: {
+      username: process.env.TWILIO_ACCOUNT_SID,
+      password: process.env.TWILIO_AUTH_TOKEN
+    }
+  });
   const mimeType = response.headers['content-type'] || 'image/jpeg';
   return {
     inlineData: {
@@ -171,15 +177,15 @@ async function getWhatsAppChatResponse(userText, history = [], imageUrl = null) 
     let promptContext = `
     THE USER IS MESSAGING YOU ON WHATSAPP.
     
-    CONVERSATION FLOW:
-    1. GREETING: If the user says "Hello" or starts a new chat, DO NOT start the 7-point interview. Instead, welcome them and ask if they have a specific crop question OR if they want to build a "Full Agronomy Plan".
-    2. QUESTION MODE: If they have a question, answer it scientifically and don't press for a plan.
-    3. PLAN MODE: Only if they say they want a "Plan", start collecting the 7 points strictly one-by-one.
+    STRICT MODES:
+    1. **Q&A MODE** (Default): If the user asks a question or sends a photo, JUST ANSWER IT. Give the scientific diagnosis and remedy. STOP THERE. Do NOT ask for "Past Crop", "Location", "Soil", or "Terrain". Do NOT try to build a plan.
+    2. **PLAN MODE**: ONLY if the user says "Plan", "Build a plan", or "I want a manual", then start the 7-point discovery sequence (one-by-one).
     
     RULES:
-    - VISION: If an image is provided, ANALYZE IT for plant health, pests, or diseases. Explain what you see.
+    - NEVER ask for personal/farm data during Q&A mode.
+    - If you need a specific context to answer a question (e.g. "What crop?"), you can ask ONLY that one thing.
     - BE AN EXPERT: Use scientific names and exact dosages.
-    - NO STALLING: Answer first, then ask for missing info.
+    - VISION: If an image is provided, analyze the plant health immediately and wait for the next question.
     
     User Message: "${userText}"
     `;
@@ -204,7 +210,7 @@ async function getWhatsAppChatResponse(userText, history = [], imageUrl = null) 
 
     return response.text;
   } catch (error) {
-    console.error("WhatsApp AI Error:", error);
+    console.error("WhatsApp AI Error Details:", error.stack || error);
     return "I'm sorry, I'm having trouble connecting to my diagnostic brain! Please try again in a moment.";
   }
 }
